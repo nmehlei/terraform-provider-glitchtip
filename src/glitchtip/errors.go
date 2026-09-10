@@ -1,7 +1,12 @@
 // src/glitchtip/errors.go
 package glitchtip
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var errorsAs = errors.As
 
 // ConfigError indicates a problem with local client configuration —
 // a bad endpoint, missing credential, or unsupported API version. It is
@@ -36,4 +41,10 @@ func (e *APIError) Error() string {
 // resource's Read method uses to detect out-of-band deletion.
 func (e *APIError) NotFound() bool {
 	return e.StatusCode == 404
+}
+
+// asAPIError is a small errors.As wrapper kept in this package so client
+// tests can assert on *APIError without importing "errors" in every file.
+func asAPIError(err error, target **APIError) bool {
+	return errorsAs(err, target)
 }
