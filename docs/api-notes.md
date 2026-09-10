@@ -626,10 +626,13 @@ The committed `docker-compose.yml` (curl→python3 healthcheck + `DYNO=web.1`)
 was observed bringing the `web` service to `healthy` **from a cold
 `down -v` state with no manual migrate step** — the follow-up probe above
 ran against exactly such a cold-booted stack (`web` reported `healthy`
-~350s after `up.sh`, first-boot migrations included), and `up.sh`'s bounded
-poll loop exited success on its own. First-boot cold time (image already
-pulled) is ~5-6 min; `up.sh`'s 180s health bound may need one manual
-re-run or a higher bound on a truly cold machine — noted, left at 180s.
+~350s after `up.sh`, first-boot migrations included). ⚠️ Because that
+~350s exceeds `up.sh`'s 180s health-poll bound, `up.sh` itself exited
+non-zero on the first cold run and the stack had to be re-checked after
+migrations finished; the compose file and healthcheck are correct, but
+`up.sh`'s 180s bound is too tight for a truly cold boot (image pulled,
+DB unmigrated). Raise the bound or expect one manual re-run on a cold
+machine — left at 180s here per the brief.
 
 ---
 
