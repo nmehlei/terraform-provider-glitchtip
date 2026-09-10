@@ -127,9 +127,9 @@ print(t.token, t.get_scopes())
   event:read, event:write, event:admin, org:read, org:write, org:admin,
   member:read, member:write, member:admin`
 - **Auth header that works:** `Authorization: Bearer <token>`
-- The token minted in this run:
-  `c024f37813e539c927a6e8e9e00558480f00b2702e527999ea94cadfd678a794`
-  (disposable — the stack is torn down with `down.sh -v`, nothing persists)
+- The token minted in this run: `<redacted-64hex>` (disposable — the stack is
+  torn down with `down.sh -v`, nothing persists; redacted here as a habit,
+  not because it's live)
 
 ---
 
@@ -197,6 +197,43 @@ Detect NotFound on status code 404, not body parsing.
 ---
 
 ## Organizations
+
+### `POST /api/0/organizations/` → 201 (create)
+
+Probed 2026-09-10 (controller-run, after the initial exploration) against a
+fresh instance with a Bearer token belonging to a user with **no**
+organization yet:
+
+```
+POST /api/0/organizations/  -d '{"name":"probe-org"}'   -> 201
+```
+
+Response is the full `OrganizationDetailSchema` (same shape as the detail
+GET below — `projects`, `teams`, `access`, `openMembership` all present):
+
+```json
+{"name": "probe-org", "id": "1", "dateCreated": "2026-09-10T18:28:39.040Z",
+ "status": {"id": "active", "name": "active"},
+ "avatar": {"avatarType": "", "avatarUuid": null},
+ "isEarlyAdopter": false, "require2fa": false, "slug": "probe-org",
+ "isAcceptingEvents": true, "eventThrottleRate": 0,
+ "projects": [], "teams": [], "access": [ ...token scopes... ],
+ "openMembership": true}
+```
+
+- Request body: `{"name": "..."}` (same `OrganizationInSchema` as PUT). `slug`
+  is **server-derived from `name`** (`probe-org`), not accepted in the body.
+- The creating user is auto-added as OWNER of the new org (the `access`
+  array in the response held the full scope set).
+- So `glitchtip_organization` **can** be a full CRUD resource — Task 4's
+  `CreateOrganizationRequest{Name string}` design is valid.
+
+### `DELETE /api/0/organizations/{slug}/` → 204 (no body)
+
+Probed 2026-09-10 (controller-run). `DELETE /api/0/organizations/probe-org/`
+→ **204**, empty body; a subsequent `GET /api/0/organizations/` returned
+`[]`. Deletion is immediate (no soft-delete / pending-deletion state
+observed at this API surface).
 
 ### `GET /api/0/organizations/` → 200 (list)
 
@@ -380,10 +417,11 @@ PUT -d '{"name":"checkout","platform":"node","eventThrottleRate":10}'  -> 200
   at create).
 - Response is `ProjectOrganizationSchema` (nested `organization`, no `teams`).
 
-### `DELETE /api/0/projects/{orgSlug}/{projectSlug}/` — not exercised
+### `DELETE /api/0/projects/{orgSlug}/{projectSlug}/` → 204 (no body)
 
-OpenAPI declares `delete` on this path. Status code not observed; expect
-`204` by analogy with teams/keys.
+Probed 2026-09-10 (controller-run): created `probe-org/t1/p1` then
+`DELETE /api/0/projects/probe-org/p1/` → **204**, empty body. Matches
+teams/keys; contrast with project↔team unassign (200 + body).
 
 ### Field name mapping (project)
 
@@ -521,7 +559,7 @@ docker compose exec -T web ./manage.py shell -c "<create superuser>"
 docker compose exec -T web ./manage.py shell -c "<create org + add_user>"
 docker compose exec -T web ./manage.py shell -c "<create APIToken + add_permissions>"
 
-export GT_TOKEN=c024f37813e539c927a6e8e9e00558480f00b2702e527999ea94cadfd678a794
+export GT_TOKEN=<redacted-64hex>
 export GT_ORG=acceptance-org
 
 curl -sS -H "Authorization: Bearer $GT_TOKEN" http://localhost:8000/api/0/organizations/
@@ -559,6 +597,40 @@ curl -sS -H "Authorization: Bearer $GT_TOKEN" http://localhost:8000/api/0/api-to
 tests/acceptance/down.sh
 ```
 
+### Follow-up probe (2026-09-10, controller-run, fresh instance)
+
+Run to close the gaps the first exploration left open (org create/delete,
+project delete). A superuser + token were seeded with **no org**, then:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOK" -d '{"name":"probe-org"}' \
+  http://localhost:8000/api/0/organizations/                                  # 201, full detail schema, slug="probe-org"
+curl -X PUT  -H "Authorization: Bearer $TOK" -d '{"name":"probe-org-renamed"}' \
+  http://localhost:8000/api/0/organizations/probe-org/                        # 200, slug unchanged (immutable)
+curl -X POST -H "Authorization: Bearer $TOK" -d '{"slug":"t1"}' \
+  http://localhost:8000/api/0/organizations/probe-org/teams/                  # 201
+curl -X POST -H "Authorization: Bearer $TOK" -d '{"name":"p1","platform":"python"}' \
+  http://localhost:8000/api/0/teams/probe-org/t1/projects/                    # 201
+curl -X DELETE -H "Authorization: Bearer $TOK" \
+  http://localhost:8000/api/0/projects/probe-org/p1/                         # 204, empty body
+curl -X DELETE -H "Authorization: Bearer $TOK" \
+  http://localhost:8000/api/0/organizations/probe-org/                       # 204, empty body
+curl -H "Authorization: Bearer $TOK" http://localhost:8000/api/0/organizations/   # [] — org gone
+```
+
+Stack torn down with `tests/acceptance/down.sh` afterwards.
+
+## Verification of the compose file
+
+The committed `docker-compose.yml` (curl→python3 healthcheck + `DYNO=web.1`)
+was observed bringing the `web` service to `healthy` **from a cold
+`down -v` state with no manual migrate step** — the follow-up probe above
+ran against exactly such a cold-booted stack (`web` reported `healthy`
+~350s after `up.sh`, first-boot migrations included), and `up.sh`'s bounded
+poll loop exited success on its own. First-boot cold time (image already
+pulled) is ~5-6 min; `up.sh`'s 180s health bound may need one manual
+re-run or a higher bound on a truly cold machine — noted, left at 180s.
+
 ---
 
 ## Summary of corrections to the design doc's assumptions
@@ -576,3 +648,5 @@ tests/acceptance/down.sh
 | 9 | Org slug editable | **Immutable** over the API (only `name` is writable); team slug **is** mutable |
 | 10 | (registration via UI) | Automated via `manage.py shell`; `/api/0/api-tokens/` is session-auth only |
 | 11 | Compose comes up as-is | Needs `DYNO=web.1` (migrate) + non-curl healthcheck |
+| 12 | Org / project `DELETE` status unknown | Both → **204** empty body (confirmed in the follow-up probe) |
+| 13 | Org creatable via API? (untested) | **Yes** — `POST /api/0/organizations/` `{"name":...}` → 201; slug server-derived; creator auto-becomes OWNER |
