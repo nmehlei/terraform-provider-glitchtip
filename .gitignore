@@ -1,2 +1,9 @@
 .worktrees/
 .superpowers/
+terraform-provider-glitchtip
+terraform-provider-glitchtip_v*
+*.zip
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
