@@ -1,6 +1,6 @@
 module github.com/nmehlei/terraform-provider-glitchtip
 
-go 1.27.1
+go 1.25.8
 
 require github.com/hashicorp/terraform-plugin-framework v1.19.0
 
