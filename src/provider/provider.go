@@ -119,7 +119,7 @@ func (p *GlitchTipProvider) Configure(ctx context.Context, req provider.Configur
 func (p *GlitchTipProvider) Resources(_ context.Context) []func() resource.Resource {
 	// Tasks 11-14 each add their New*Resource factory here — Task 14's
 	// last step re-verifies the full build with all five present.
-	return []func() resource.Resource{NewOrganizationResource}
+	return []func() resource.Resource{NewOrganizationResource, NewTeamResource}
 }
 
 func (p *GlitchTipProvider) DataSources(_ context.Context) []func() datasource.DataSource {
