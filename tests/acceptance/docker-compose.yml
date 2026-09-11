@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: glitchtip
+      POSTGRES_PASSWORD: glitchtip
+      POSTGRES_USER: glitchtip
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7
+
+  web:
+    image: glitchtip/glitchtip:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgres://glitchtip:glitchtip@postgres:5432/glitchtip
+      SECRET_KEY: acceptance-test-secret-key
+      REDIS_URL: redis://redis:6379/0
+      PORT: "8000"
+      # The glitchtip image's ./bin/start.sh only runs `./manage.py migrate`
+      # when the Heroku-style DYNO env var matches `web*`. Without this the DB
+      # is never migrated and every request fails with
+      # `relation "users_user" does not exist`. See docs/api-notes.md.
+      DYNO: "web.1"
+      CELERY_WORKER_AUTOSCALE: "1,1"
+      ENABLE_OPEN_USER_REGISTRATION: "true"
+      GLITCHTIP_DOMAIN: http://localhost:8000
+    healthcheck:
+      # The glitchtip/glitchtip image has no `curl` binary, so the brief's
+      # curl-based healthcheck always fails with "executable file not found".
+      # Use python3 (present in the image) to hit the same endpoint instead.
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/_health/').status == 200 else 1)"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  worker:
+    image: glitchtip/glitchtip:latest
+    command: ./bin/run-celery-with-beat.sh
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://glitchtip:glitchtip@postgres:5432/glitchtip
+      SECRET_KEY: acceptance-test-secret-key
+      REDIS_URL: redis://redis:6379/0
