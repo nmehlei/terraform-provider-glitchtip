@@ -1,6 +1,10 @@
 // src/main.go
 package main
 
+// tfplugindocs: --provider-dir "." points to src/ itself (not ".."/repo root) because
+// tfplugindocs runs a bare "go build" in --provider-dir with no package pattern,
+// requiring main.go directly in that directory. --examples-dir and --rendered-website-dir
+// repoint outputs back to the repo root since they default to --provider-dir-relative.
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-dir . --provider-name glitchtip --examples-dir ../examples --rendered-website-dir ../docs
 
 import (
