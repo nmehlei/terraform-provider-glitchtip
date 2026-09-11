@@ -2,14 +2,10 @@
 # tests/acceptance/up.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-# Pin an explicit, unique compose project name. Without this, `docker compose`
-# defaults the project name to the directory basename ("acceptance"), which
-# collides with any other unrelated compose stack on a shared Docker daemon
-# that happens to use the same directory name — observed in practice during
-# Task 16: `docker compose up` reused pre-existing containers/volumes from a
-# completely different, unrelated project also named "acceptance" (including
-# an incompatible Postgres 15 data volume). Do not remove this.
-export COMPOSE_PROJECT_NAME=glitchtip-tf-acceptance
+# The compose project name (glitchtip-tf-acceptance) is pinned once, in
+# .env (auto-loaded by `docker compose` from this directory) — the single
+# source of truth for any `docker compose` invocation against this stack.
+# See .env for why (Task 16 cross-stack collision).
 docker compose up -d
 echo "Waiting for GlitchTip to become healthy..."
 # Note: macOS ships no `timeout` binary by default (GNU coreutils), so we
@@ -52,6 +48,10 @@ if created:
     t.add_permissions(['project:read','project:write','project:admin','project:releases',
         'team:read','team:write','team:admin','event:read','event:write','event:admin',
         'org:read','org:write','org:admin','member:read','member:write','member:admin'])
+    # add_permissions() only flips bits on the in-memory model instance; an
+    # explicit save() (beyond Task 1's proven snippet, which used the same
+    # object right away without persisting it) is required here so the
+    # scopes survive being read back by later refresh_from_db().
     t.save()
 t.refresh_from_db()
 print('GLITCHTIP_TOKEN=' + t.token)

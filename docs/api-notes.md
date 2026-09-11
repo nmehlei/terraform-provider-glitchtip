@@ -648,11 +648,20 @@ Run 2026-09-11, controller-run, against the compose stack in this repo.
   services entirely — `aptabase-plus`, `clickhouse`, `mailcatcher` — plus a
   `postgres` container using a Postgres **15** data volume, incompatible
   with this stack's `postgres:16` image: `FATAL: database files are
-  incompatible with server`). `up.sh`/`down.sh` now pin
-  `COMPOSE_PROJECT_NAME=glitchtip-tf-acceptance` so this stack never shares
-  a project namespace with anything else. Anyone reusing this pattern on a
-  shared Docker host should do the same rather than relying on the
-  directory-name default.
+  incompatible with server`). Fixed by pinning
+  `COMPOSE_PROJECT_NAME=glitchtip-tf-acceptance` once, in
+  `tests/acceptance/.env` (auto-loaded by `docker compose` from that
+  directory — both `up.sh` and `down.sh` `cd` there first) — a single
+  source of truth honored by any `docker compose` invocation against this
+  stack, rather than duplicating the pin as a literal `export` in both
+  scripts (the review round on this task flagged that duplication as the
+  same failure mode reopening silently on drift). Note: the more obvious
+  fix — a top-level `name:` key in `docker-compose.yml` itself, the modern
+  Compose Specification mechanism — was tried first and reverted: the
+  `docker compose` CLI installed in this environment (v2.2.3, predating
+  that key) rejects it with `Additional property name is not allowed`.
+  Anyone reusing this pattern on a shared Docker host should pin a project
+  name the same way rather than relying on the directory-name default.
 - ⚠️ **`PUT /api/0/projects/{org}/{project}/` requires `name` on every
   call, not only when it changes.** The provider's `ProjectResource.Update`
   originally only set `update.Name` when the plan's `name` differed from
