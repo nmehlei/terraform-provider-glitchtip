@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -28,7 +27,7 @@ func fakeGlitchTip(t *testing.T, routes http.HandlerFunc) *httptest.Server {
 	}))
 }
 
-func protoV6ProviderFactories(endpoint string) map[string]func() (tfprotov6.ProviderServer, error) {
+func protoV6ProviderFactories() map[string]func() (tfprotov6.ProviderServer, error) {
 	return map[string]func() (tfprotov6.ProviderServer, error){
 		"glitchtip": func() (tfprotov6.ProviderServer, error) {
 			return providerserver.NewProtocol6(New("test")())(), nil
@@ -87,7 +86,7 @@ resource "glitchtip_organization" "test" {
 	}
 
 	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: protoV6ProviderFactories(srv.URL),
+		ProtoV6ProviderFactories: protoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: config("Acme"),
@@ -119,5 +118,4 @@ resource "glitchtip_organization" "test" {
 			},
 		},
 	})
-	_ = context.Background
 }
