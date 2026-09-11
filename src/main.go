@@ -1,7 +1,7 @@
 // src/main.go
 package main
 
-//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-dir ..
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-dir . --provider-name glitchtip --examples-dir ../examples --rendered-website-dir ../docs
 
 import (
 	"context"
