@@ -9,10 +9,13 @@ cd "$(dirname "$0")"
 docker compose up -d
 echo "Waiting for GlitchTip to become healthy..."
 # Note: macOS ships no `timeout` binary by default (GNU coreutils), so we
-# implement the same 180s bound with a manual loop instead of `timeout 180 ...`.
+# implement the same 600s bound with a manual loop instead of `timeout 600 ...`.
+# A cold boot (image pull + first-run DB migration) takes ~5-6 minutes
+# (~300-360s, see tests/acceptance/README.md and docs/api-notes.md); a GitHub
+# Actions runner is always cold, so the bound needs headroom above that.
 elapsed=0
 until [ "$(docker compose ps -q web | xargs docker inspect -f '{{.State.Health.Status}}')" = "healthy" ]; do
-  if [ "$elapsed" -ge 180 ]; then
+  if [ "$elapsed" -ge 600 ]; then
     echo "Timed out waiting for GlitchTip to become healthy" >&2
     exit 1
   fi

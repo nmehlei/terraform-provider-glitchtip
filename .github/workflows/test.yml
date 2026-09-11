@@ -21,6 +21,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
       - run: test -z "$(gofmt -l src/)"
       - run: go vet ./src/...
       - run: go build ./src/...

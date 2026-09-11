@@ -16,12 +16,17 @@ func TestAccProjectResource_lifecycle(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/0/teams/acme/platform/projects/":
 			var in struct {
-				Name     string `json:"name"`
-				Platform string `json:"platform"`
+				Name              string   `json:"name"`
+				Platform          string   `json:"platform"`
+				EventThrottleRate *float64 `json:"eventThrottleRate"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&in)
+			rate := 0.0
+			if in.EventThrottleRate != nil {
+				rate = *in.EventThrottleRate
+			}
 			proj = map[string]any{"id": "100", "slug": "checkout", "name": in.Name,
-				"platform": in.Platform, "eventThrottleRate": 0.0,
+				"platform": in.Platform, "eventThrottleRate": rate,
 				"teams": []map[string]string{{"slug": "platform"}}}
 			_ = json.NewEncoder(w).Encode(proj)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/0/projects/acme/checkout/":
@@ -33,6 +38,17 @@ func TestAccProjectResource_lifecycle(t *testing.T) {
 		case r.Method == http.MethodPut && r.URL.Path == "/api/0/projects/acme/checkout/":
 			var in map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&in)
+			// Mirror the real API: GlitchTip's ProjectIn schema requires
+			// "name" on every PUT (see Task 16 / project_resource.go), so
+			// a request missing it should 422 the same way the live
+			// instance does.
+			if _, ok := in["name"]; !ok {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"detail": []map[string]any{{"loc": []string{"body", "payload", "name"}, "msg": "Field required"}},
+				})
+				return
+			}
 			for k, v := range in {
 				proj[k] = v
 			}
@@ -54,10 +70,11 @@ provider "glitchtip" {
   insecure = true
 }
 resource "glitchtip_project" "test" {
-  organization_slug = "acme"
-  initial_team      = "platform"
-  name              = %q
-  platform          = "python"
+  organization_slug   = "acme"
+  initial_team        = "platform"
+  name                = %q
+  platform            = "python"
+  event_throttle_rate = 10
 }
 `, srv.URL, name)
 	}
@@ -70,6 +87,9 @@ resource "glitchtip_project" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("glitchtip_project.test", "slug", "checkout"),
 					resource.TestCheckResourceAttr("glitchtip_project.test", "platform", "python"),
+					// Regression guard: event_throttle_rate must actually
+					// be sent on Create, not silently dropped.
+					resource.TestCheckResourceAttr("glitchtip_project.test", "event_throttle_rate", "10"),
 				),
 			},
 			{Config: cfg("Checkout Service"), Check: resource.TestCheckResourceAttr("glitchtip_project.test", "name", "Checkout Service")},

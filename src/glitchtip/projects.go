@@ -50,8 +50,9 @@ func (c *Client) ListProjects(ctx context.Context, orgSlug, cursorURL string) ([
 // create. The project is created under teamSlug (see CreateProject); Platform
 // may be empty for GlitchTip's generic/"other" platform.
 type CreateProjectRequest struct {
-	Name     string `json:"name"`
-	Platform string `json:"platform,omitempty"`
+	Name              string   `json:"name"`
+	Platform          string   `json:"platform,omitempty"`
+	EventThrottleRate *float64 `json:"eventThrottleRate,omitempty"`
 }
 
 // CreateProject creates a project under the given team. The team a project

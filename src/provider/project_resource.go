@@ -85,7 +85,7 @@ func (r *ProjectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"event_throttle_rate": schema.Float64Attribute{
-				MarkdownDescription: "Fraction of incoming events to drop, `0.0`–`1.0`. Optional; defaults to the " +
+				MarkdownDescription: "Percentage of incoming events to drop, `0`-`100`. Optional; defaults to the " +
 					"GlitchTip server default when omitted.",
 				Optional:      true,
 				Computed:      true,
@@ -117,6 +117,10 @@ func (r *ProjectResource) Create(ctx context.Context, req resource.CreateRequest
 	in := glitchtip.CreateProjectRequest{Name: plan.Name.ValueString()}
 	if !plan.Platform.IsNull() && !plan.Platform.IsUnknown() {
 		in.Platform = plan.Platform.ValueString()
+	}
+	if !plan.EventThrottleRate.IsNull() && !plan.EventThrottleRate.IsUnknown() {
+		v := plan.EventThrottleRate.ValueFloat64()
+		in.EventThrottleRate = &v
 	}
 	project, err := r.client.CreateProject(ctx, plan.OrganizationSlug.ValueString(), plan.InitialTeam.ValueString(), in)
 	if err != nil {
@@ -159,14 +163,17 @@ func (r *ProjectResource) Update(ctx context.Context, req resource.UpdateRequest
 	// when it changes (confirmed against a live instance in Task 16's
 	// acceptance run: omitting it on a platform-only update fails with
 	// 422 {"detail":[{"loc":["body","payload","name"],"msg":"Field required"}]}).
-	// So always send the plan's name, regardless of whether it changed.
+	// That's strong evidence this PUT replaces the whole object rather than
+	// merging a partial update, so all three mutable fields are always sent
+	// from the plan (not just the ones that changed) to avoid the server
+	// nulling out platform/event_throttle_rate on a name-only update.
 	name := plan.Name.ValueString()
 	update.Name = &name
-	if !plan.Platform.Equal(state.Platform) && !plan.Platform.IsUnknown() {
+	if !plan.Platform.IsUnknown() {
 		v := plan.Platform.ValueString()
 		update.Platform = &v
 	}
-	if !plan.EventThrottleRate.Equal(state.EventThrottleRate) && !plan.EventThrottleRate.IsUnknown() {
+	if !plan.EventThrottleRate.IsUnknown() {
 		v := plan.EventThrottleRate.ValueFloat64()
 		update.EventThrottleRate = &v
 	}

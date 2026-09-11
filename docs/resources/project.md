@@ -33,7 +33,7 @@ resource "glitchtip_project" "checkout" {
 
 ### Optional
 
-- `event_throttle_rate` (Number) Fraction of incoming events to drop, `0.0`–`1.0`. Optional; defaults to the GlitchTip server default when omitted.
+- `event_throttle_rate` (Number) Percentage of incoming events to drop, `0`-`100`. Optional; defaults to the GlitchTip server default when omitted.
 - `platform` (String) Platform identifier (e.g. `python`, `javascript-react`, `go`). Optional; GlitchTip leaves it unset if omitted.
 
 ### Read-Only
