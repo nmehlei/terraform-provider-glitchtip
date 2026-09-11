@@ -155,10 +155,13 @@ func (r *ProjectResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 	update := glitchtip.UpdateProjectRequest{}
-	if !plan.Name.Equal(state.Name) {
-		v := plan.Name.ValueString()
-		update.Name = &v
-	}
+	// GlitchTip's ProjectIn schema requires "name" on every PUT, not just
+	// when it changes (confirmed against a live instance in Task 16's
+	// acceptance run: omitting it on a platform-only update fails with
+	// 422 {"detail":[{"loc":["body","payload","name"],"msg":"Field required"}]}).
+	// So always send the plan's name, regardless of whether it changed.
+	name := plan.Name.ValueString()
+	update.Name = &name
 	if !plan.Platform.Equal(state.Platform) && !plan.Platform.IsUnknown() {
 		v := plan.Platform.ValueString()
 		update.Platform = &v

@@ -636,6 +636,41 @@ machine — left at 180s here per the brief.
 
 ---
 
+## Task 16 addendum: real-instance acceptance run findings
+
+Run 2026-09-11, controller-run, against the compose stack in this repo.
+
+- ⚠️ **Compose project name collision on a shared Docker daemon.** `up.sh`
+  originally ran plain `docker compose up -d` from `tests/acceptance/`,
+  which defaults the compose project name to the directory basename
+  (`acceptance`). On this shared environment that collided with an
+  unrelated, pre-existing compose stack also named `acceptance` (different
+  services entirely — `aptabase-plus`, `clickhouse`, `mailcatcher` — plus a
+  `postgres` container using a Postgres **15** data volume, incompatible
+  with this stack's `postgres:16` image: `FATAL: database files are
+  incompatible with server`). `up.sh`/`down.sh` now pin
+  `COMPOSE_PROJECT_NAME=glitchtip-tf-acceptance` so this stack never shares
+  a project namespace with anything else. Anyone reusing this pattern on a
+  shared Docker host should do the same rather than relying on the
+  directory-name default.
+- ⚠️ **`PUT /api/0/projects/{org}/{project}/` requires `name` on every
+  call, not only when it changes.** The provider's `ProjectResource.Update`
+  originally only set `update.Name` when the plan's `name` differed from
+  state, omitting it otherwise (e.g. a platform-only update). GlitchTip
+  rejected that with `422 {"detail":[{"loc":["body","payload","name"],
+  "msg":"Field required"}]}` — confirming `ProjectIn.name` is required on
+  the wire even though it's conceptually unchanged. Fixed in
+  `src/provider/project_resource.go` to always send the plan's current name
+  on every `Update` call.
+- Everything else in this document was confirmed accurate end-to-end: org
+  create, team create x2, project create (with `initial_team`), project key
+  create + DSN + `terraform import` (`ImportStateVerify`), project↔team
+  membership create, a platform-only update, an empty-plan drift check, and
+  full resource-graph destroy all passed against a live instance in one
+  `TestAccGlitchTipLifecycle` run (see `tests/acceptance/`).
+
+---
+
 ## Summary of corrections to the design doc's assumptions
 
 | # | Design doc assumed | Reality |
