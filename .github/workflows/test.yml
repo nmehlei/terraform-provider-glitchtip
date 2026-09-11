@@ -1,0 +1,56 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: gofmt -l src/
+      - run: go vet ./src/...
+      - run: go build ./src/...
+      - run: go test -race ./src/... -timeout 120s
+
+  acceptance:
+    name: acceptance tests (disposable GlitchTip)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - name: Start disposable GlitchTip
+        working-directory: tests/acceptance
+        run: ./up.sh | tee up.out
+      - name: Run acceptance tests
+        working-directory: .
+        env:
+          GLITCHTIP_ACCEPTANCE: "1"
+          GLITCHTIP_ENDPOINT: http://localhost:8000
+        run: |
+          export GLITCHTIP_TOKEN="$(grep -m1 '^GLITCHTIP_TOKEN=' tests/acceptance/up.out | cut -d= -f2-)"
+          test -n "$GLITCHTIP_TOKEN"
+          go test ./tests/acceptance/... -v -timeout 20m
+      - name: Tear down
+        if: always()
+        working-directory: tests/acceptance
+        run: ./down.sh
