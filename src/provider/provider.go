@@ -117,11 +117,9 @@ func (p *GlitchTipProvider) Configure(ctx context.Context, req provider.Configur
 }
 
 func (p *GlitchTipProvider) Resources(_ context.Context) []func() resource.Resource {
-	// Empty until Tasks 10-14 each add their New*Resource factory here —
-	// Task 14's last step is the one that fills this in with all five and
-	// re-verifies the full build, so no task in between references a
-	// resource file that doesn't exist yet.
-	return nil
+	// Tasks 11-14 each add their New*Resource factory here — Task 14's
+	// last step re-verifies the full build with all five present.
+	return []func() resource.Resource{NewOrganizationResource}
 }
 
 func (p *GlitchTipProvider) DataSources(_ context.Context) []func() datasource.DataSource {
