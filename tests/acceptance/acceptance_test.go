@@ -146,3 +146,93 @@ resource "glitchtip_project_team_membership" "m" {
 		},
 	})
 }
+
+// TestAccProjectAlertLifecycle drives glitchtip_project_alert against a real
+// instance: create (email + a webhook-style recipient), update, import, drift.
+func TestAccProjectAlertLifecycle(t *testing.T) {
+	endpoint, token := gate(t)
+	t.Setenv("GLITCHTIP_TOKEN", token)
+	t.Setenv("TF_ACC", "1")
+	suffix := fmt.Sprintf("tf-alert-%d", os.Getpid())
+
+	config := func(quantity int, uptime bool) string {
+		return fmt.Sprintf(`
+provider "glitchtip" {
+  endpoint = %q
+  insecure = true
+}
+
+resource "glitchtip_organization" "o" {
+  name = "%s-org"
+}
+
+resource "glitchtip_team" "t" {
+  organization_slug = glitchtip_organization.o.slug
+  slug              = "%s-team"
+}
+
+resource "glitchtip_project" "p" {
+  organization_slug = glitchtip_organization.o.slug
+  initial_team      = glitchtip_team.t.slug
+  name              = "%s-proj"
+  platform          = "python"
+}
+
+resource "glitchtip_project_alert" "a" {
+  organization_slug = glitchtip_organization.o.slug
+  project_slug      = glitchtip_project.p.slug
+  name              = "new issues"
+  timespan_minutes  = 1
+  quantity          = %d
+  uptime            = %t
+  recipients = [
+    { type = "email" },
+    { type = "ntfy", url = "https://ntfy.example.com/%s" },
+  ]
+}
+`, endpoint, suffix, suffix, suffix, quantity, uptime, suffix)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories(),
+		Steps: []resource.TestStep{
+			{
+				Config: config(1, false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("glitchtip_project_alert.a", "id"),
+					resource.TestCheckResourceAttr("glitchtip_project_alert.a", "quantity", "1"),
+					resource.TestCheckResourceAttr("glitchtip_project_alert.a", "uptime", "false"),
+					resource.TestCheckResourceAttr("glitchtip_project_alert.a", "recipients.#", "2"),
+				),
+			},
+			{
+				// drift check: re-reading must not produce a diff (recipient order, empty url)
+				Config:   config(1, false),
+				PlanOnly: true,
+			},
+			{
+				Config: config(5, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("glitchtip_project_alert.a", "quantity", "5"),
+					resource.TestCheckResourceAttr("glitchtip_project_alert.a", "uptime", "true"),
+				),
+			},
+			{
+				ResourceName: "glitchtip_project_alert.a",
+				ImportState:  true,
+				ImportStateIdFunc: func(s *terraform.State) (string, error) {
+					rs := s.RootModule().Resources["glitchtip_project_alert.a"]
+					return fmt.Sprintf("%s:%s:%s",
+						rs.Primary.Attributes["organization_slug"],
+						rs.Primary.Attributes["project_slug"],
+						rs.Primary.Attributes["id"]), nil
+				},
+				ImportStateVerify: true,
+			},
+			{
+				Config:   config(5, true),
+				PlanOnly: true,
+			},
+		},
+	})
+}

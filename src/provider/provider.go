@@ -122,6 +122,7 @@ func (p *GlitchTipProvider) Resources(_ context.Context) []func() resource.Resou
 		NewTeamResource,
 		NewProjectResource,
 		NewProjectKeyResource,
+		NewProjectAlertResource,
 		NewProjectTeamMembershipResource,
 	}
 }

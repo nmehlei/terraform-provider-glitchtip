@@ -10,6 +10,7 @@ Manages resources on a [GlitchTip](https://glitchtip.com) instance via its REST 
 | glitchtip_team | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | glitchtip_project | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | glitchtip_project_key | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| glitchtip_project_alert | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | glitchtip_project_team_membership | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## Quickstart
